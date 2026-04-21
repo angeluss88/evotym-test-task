@@ -1,0 +1,13 @@
+/.DS_Store
+/.idea/
+/.vscode/
+
+# Local Docker overrides
+/docker-compose.override.yml
+
+# Future shared bundle artifacts
+/shared-bundle/.env.local
+/shared-bundle/.env.local.php
+/shared-bundle/.env.*.local
+/shared-bundle/var/
+/shared-bundle/vendor/

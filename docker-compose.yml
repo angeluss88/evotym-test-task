@@ -1,0 +1,102 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: symfony
+      RABBITMQ_DEFAULT_PASS: symfony
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  product-db:
+    image: postgres:16-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: product_service
+      POSTGRES_USER: symfony
+      POSTGRES_PASSWORD: symfony
+    volumes:
+      - product-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U symfony -d product_service"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  order-db:
+    image: postgres:16-alpine
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_DB: order_service
+      POSTGRES_USER: symfony
+      POSTGRES_PASSWORD: symfony
+    volumes:
+      - order-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U symfony -d order_service"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  product-service:
+    build:
+      context: ./product-service
+    working_dir: /app
+    volumes:
+      - ./product-service:/app
+      - ./shared-bundle:/shared-bundle
+    environment:
+      APP_ENV: dev
+      # Override Symfony local defaults when the app runs inside Docker.
+      DATABASE_URL: postgresql://symfony:symfony@product-db:5432/product_service?serverVersion=16&charset=utf8
+      MESSENGER_TRANSPORT_DSN: amqp://symfony:symfony@rabbitmq:5672/%2f/messages
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      product-db:
+        condition: service_healthy
+    ports:
+      - "8001:8000"
+
+  order-service:
+    build:
+      context: ./order-service
+    working_dir: /app
+    volumes:
+      - ./order-service:/app
+      - ./shared-bundle:/shared-bundle
+    environment:
+      APP_ENV: dev
+      # Override Symfony local defaults when the app runs inside Docker.
+      DATABASE_URL: postgresql://symfony:symfony@order-db:5432/order_service?serverVersion=16&charset=utf8
+      MESSENGER_TRANSPORT_DSN: amqp://symfony:symfony@rabbitmq:5672/%2f/messages
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      order-db:
+        condition: service_healthy
+    ports:
+      - "8002:8000"
+
+  adminer:
+    image: adminer:4
+    profiles: ["tools"]
+    depends_on:
+      - product-db
+      - order-db
+    ports:
+      - "8080:8080"
+
+volumes:
+  rabbitmq-data:
+  product-db-data:
+  order-db-data:
