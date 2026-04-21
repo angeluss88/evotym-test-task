@@ -7,6 +7,4 @@ fi
 
 rm -rf var/cache/*
 
-php bin/console doctrine:migrations:migrate -n
-
-exec php -S 0.0.0.0:8000 -t public
+exec php bin/console messenger:consume order_created --time-limit=3600 --memory-limit=128M -vv

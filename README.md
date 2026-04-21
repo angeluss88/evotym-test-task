@@ -16,7 +16,10 @@ Flow:
 1. A product is created in `product-service`
 2. A `ProductSyncedMessage` is published to RabbitMQ
 3. `order-service` consumes the message and updates its local product table
-4. Orders are created in `order-service` using this local product data
+4. An order is created in `order-service` using the local product read model
+5. `order-service` publishes an `OrderCreatedMessage`
+6. `product-service` consumes the message, validates quantity, decreases it, and republishes `ProductSyncedMessage`
+7. `order-service` consumes the updated `ProductSyncedMessage` and refreshes its local product copy
 
 This design demonstrates:
 - separation of concerns
@@ -100,7 +103,7 @@ The API containers run their Doctrine migrations automatically on startup, and t
 docker compose up --build -d
 ```
 
-2. The `order-service` consumer is started automatically via Docker Compose.
+2. The `product-service` and `order-service` consumers are started automatically via Docker Compose.
 
 3. Create a product in `product-service`:
 
@@ -126,7 +129,8 @@ curl -X POST http://localhost:8002/orders \
 
 Expected result:
 - Order is successfully created
-- Product quantity in order-service is decreased
+- Product quantity is decreased in `product-service`
+- `order-service` receives the updated quantity asynchronously through `ProductSyncedMessage`
 
 6. Check created orders:
 
@@ -253,5 +257,7 @@ In a production system, access control would typically be implemented using:
 
 - Product updates and deletions are not fully implemented
 - Order lifecycle is simplified (single "Processing" state)
+- `OrderCompletedMessage` and `OrderRejectedMessage` are not implemented
+- No failure handling, compensation logic, or retry orchestration is implemented between services
 - No retry or dead-letter queue handling for failed messages
 - Eventual consistency is used instead of distributed transactions

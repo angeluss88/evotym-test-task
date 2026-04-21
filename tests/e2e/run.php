@@ -136,11 +136,22 @@ function waitUntil(callable $callback, int $timeoutSeconds, string $timeoutMessa
 
 function purgeRabbitMqQueue(): void
 {
-    exec(composeBaseCommand().' exec -T rabbitmq rabbitmqctl purge_queue messages 2>&1', $output, $exitCode);
+    foreach (['product_sync', 'order_created'] as $queueName) {
+        $output = [];
+        $exitCode = 0;
 
-    // The queue might not exist yet on a fresh run. That is fine.
-    if ($exitCode !== 0 && !str_contains(implode("\n", $output), 'not_found')) {
-        throw new E2eAssertionFailed(implode("\n", $output));
+        exec(
+            composeBaseCommand().' exec -T rabbitmq rabbitmqctl purge_queue '.escapeshellarg($queueName).' 2>&1',
+            $output,
+            $exitCode,
+        );
+
+        // The queue might not exist yet on a fresh run. That is fine.
+        $outputText = strtolower(implode("\n", $output));
+
+        if ($exitCode !== 0 && !str_contains($outputText, 'not found')) {
+            throw new E2eAssertionFailed(implode("\n", $output));
+        }
     }
 }
 
@@ -154,7 +165,7 @@ function waitForHttpServices(): void
                 return false;
             }
         },
-        60,
+        120,
         'Product service did not become ready in time.',
     );
 
@@ -166,7 +177,7 @@ function waitForHttpServices(): void
                 return false;
             }
         },
-        60,
+        120,
         'Order service did not become ready in time.',
     );
 }
@@ -185,6 +196,19 @@ function waitForProductSync(string $productId): void
         },
         30,
         sprintf('Product "%s" was not synchronized to order-service in time.', $productId),
+    );
+}
+
+function waitForOrderServiceProductQuantity(string $productId, int $expectedQuantity): void
+{
+    waitUntil(
+        static fn (): bool => fetchOrderServiceProductQuantity($productId) === $expectedQuantity,
+        30,
+        sprintf(
+            'Product "%s" quantity was not updated to %d in order-service in time.',
+            $productId,
+            $expectedQuantity,
+        ),
     );
 }
 
@@ -220,12 +244,15 @@ function runSuccessfulFullFlowScenario(): void
 
     assertSameValue(201, $order['status'], 'Order creation should succeed after sync.');
     assertSameValue(3, $order['body']['quantityOrdered'], 'Created order should keep requested quantity.');
-    assertSameValue(7, $order['body']['product']['quantity'], 'Remaining product quantity should decrease.');
+    assertSameValue(10, $order['body']['product']['quantity'], 'Order-service should not decrease quantity locally.');
+
+    waitForOrderServiceProductQuantity($productId, 7);
 
     $fetchedOrder = jsonRequest('GET', orderServiceUrl('/orders/'.$order['body']['orderId']));
 
     assertSameValue(200, $fetchedOrder['status'], 'Fetching created order should succeed.');
     assertSameValue($order['body']['orderId'], $fetchedOrder['body']['orderId'], 'Fetched order id should match.');
+    assertSameValue(7, $fetchedOrder['body']['product']['quantity'], 'Synchronized product quantity should eventually decrease.');
 }
 
 function runInsufficientQuantityScenario(): void
@@ -257,7 +284,9 @@ function runInsufficientQuantityScenario(): void
     ]);
 
     assertSameValue(201, $successfulRetry['status'], 'Retry order with valid quantity should succeed.');
-    assertSameValue(0, $successfulRetry['body']['product']['quantity'], 'Quantity should only decrease on successful order.');
+    assertSameValue(2, $successfulRetry['body']['product']['quantity'], 'Order-service should keep the local quantity unchanged at create time.');
+
+    waitForOrderServiceProductQuantity($productId, 0);
 }
 
 function runMissingProductScenario(): void

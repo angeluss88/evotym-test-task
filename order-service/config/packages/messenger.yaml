@@ -1,7 +1,23 @@
 framework:
     messenger:
         transports:
-            async: '%env(MESSENGER_TRANSPORT_DSN)%'
+            product_sync:
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
+                options:
+                    exchange:
+                        name: product_sync
+                        type: direct
+                    queues:
+                        product_sync: ~
+            order_created:
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
+                options:
+                    exchange:
+                        name: order_created
+                        type: direct
+                    queues:
+                        order_created: ~
 
         routing:
-            App\SharedBundle\Message\ProductSyncedMessage: async
+            App\SharedBundle\Message\ProductSyncedMessage: product_sync
+            App\SharedBundle\Message\OrderCreatedMessage: order_created

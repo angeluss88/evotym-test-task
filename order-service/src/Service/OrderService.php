@@ -13,7 +13,9 @@ use App\Exception\ProductNotFoundException;
 use App\Exception\ValidationException;
 use App\Repository\OrderRepository;
 use App\Repository\ProductRepository;
+use App\SharedBundle\Message\OrderCreatedMessage;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
@@ -23,6 +25,7 @@ final class OrderService
         private readonly EntityManagerInterface $entityManager,
         private readonly OrderRepository $orderRepository,
         private readonly ProductRepository $productRepository,
+        private readonly MessageBusInterface $messageBus,
         private readonly ValidatorInterface $validator,
     ) {
     }
@@ -48,8 +51,6 @@ final class OrderService
             );
         }
 
-        $product->setQuantity($availableQuantity - $quantityOrdered);
-
         $order = new Order(
             Uuid::v7()->toRfc4122(),
             $product,
@@ -59,6 +60,12 @@ final class OrderService
 
         $this->entityManager->persist($order);
         $this->entityManager->flush();
+
+        $this->messageBus->dispatch(new OrderCreatedMessage(
+            $order->getId(),
+            $product->getId(),
+            $quantityOrdered,
+        ));
 
         return $order;
     }

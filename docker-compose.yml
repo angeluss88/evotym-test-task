@@ -1,3 +1,15 @@
+x-product-service-common: &product-service-common
+  build:
+    context: ./product-service
+  working_dir: /app
+  volumes:
+    - ./product-service:/app
+    - ./shared-bundle:/shared-bundle
+  environment:
+    APP_ENV: dev
+    DATABASE_URL: postgresql://symfony:symfony@product-db:5432/product_service?serverVersion=16&charset=utf8
+    MESSENGER_TRANSPORT_DSN: amqp://symfony:symfony@rabbitmq:5672/%2f/messages
+
 x-order-service-common: &order-service-common
   build:
     context: ./order-service
@@ -61,17 +73,7 @@ services:
       retries: 10
 
   product-service:
-    build:
-      context: ./product-service
-    working_dir: /app
-    volumes:
-      - ./product-service:/app
-      - ./shared-bundle:/shared-bundle
-    environment:
-      APP_ENV: dev
-      # Override Symfony local defaults when the app runs inside Docker.
-      DATABASE_URL: postgresql://symfony:symfony@product-db:5432/product_service?serverVersion=16&charset=utf8
-      MESSENGER_TRANSPORT_DSN: amqp://symfony:symfony@rabbitmq:5672/%2f/messages
+    <<: *product-service-common
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -80,6 +82,22 @@ services:
     command: sh /app/docker/start-api.sh
     ports:
       - "${PRODUCT_SERVICE_PORT:-8001}:8000"
+
+  product-consumer:
+    <<: *product-service-common
+    environment:
+      APP_ENV: dev
+      APP_DEBUG: 0
+      DATABASE_URL: postgresql://symfony:symfony@product-db:5432/product_service?serverVersion=16&charset=utf8
+      MESSENGER_TRANSPORT_DSN: amqp://symfony:symfony@rabbitmq:5672/%2f/messages
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      product-db:
+        condition: service_healthy
+      product-service:
+        condition: service_started
+    command: sh /app/docker/start-consumer.sh
 
   order-service:
     <<: *order-service-common

@@ -30,12 +30,12 @@ final class OrderControllerTest extends DatabaseWebTestCase
         self::assertSame(3, $response['quantityOrdered']);
         self::assertSame('Processing', $response['orderStatus']);
         self::assertSame($product->getId(), $response['product']['id']);
-        self::assertSame(7, $response['product']['quantity']);
+        self::assertSame(10, $response['product']['quantity']);
 
         /** @var Product $reloadedProduct */
         $reloadedProduct = $this->entityManager->getRepository(Product::class)->find($product->getId());
 
-        self::assertSame(7, $reloadedProduct->getQuantity());
+        self::assertSame(10, $reloadedProduct->getQuantity());
         self::assertSame(1, $this->entityManager->getRepository(Order::class)->count([]));
     }
 
