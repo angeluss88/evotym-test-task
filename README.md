@@ -2,7 +2,28 @@
 
 This repository contains a small Symfony 6.4 microservices monorepo for the technical task.
 
-Current structure:
+## Architecture Overview
+
+The system consists of two independent services:
+
+- `product-service` is the source of truth for products and publishes product synchronization events
+- `order-service` maintains a local copy of products and handles order creation
+
+Services communicate asynchronously via RabbitMQ.
+
+Flow:
+
+1. A product is created in `product-service`
+2. A `ProductSyncedMessage` is published to RabbitMQ
+3. `order-service` consumes the message and updates its local product table
+4. Orders are created in `order-service` using this local product data
+
+This design demonstrates:
+- separation of concerns
+- asynchronous communication
+- eventual consistency
+
+## Structure
 
 - `product-service`: Symfony application for product management
 - `order-service`: Symfony application for order management
@@ -21,67 +42,77 @@ Current structure:
 
 - `product-service`: `http://localhost:8001`
 - `order-service`: `http://localhost:8002`
-- `rabbitmq`: `amqp://localhost:5672`
+- RabbitMQ AMQP: `amqp://localhost:5672`
 - RabbitMQ management UI: `http://localhost:15672`
 - `product-db`: `localhost:5433`
 - `order-db`: `localhost:5434`
-- `adminer` optional: `http://localhost:8080`
+- `adminer` (optional): `http://localhost:8080`
 
 ## Run With Docker
 
-Start the main stack:
+Start the stack:
 
-```bash
+```
 docker compose up --build
 ```
 
-Start the stack in background:
+Run in background:
 
-```bash
+```
 docker compose up --build -d
 ```
 
-The RabbitMQ consumer for `order-service` runs automatically as the `order-consumer` container, so no separate `messenger:consume` command is needed during normal Docker usage.
+Start Adminer as well:
 
-Start Adminer too:
-
-```bash
+```
 docker compose --profile tools up --build
 ```
 
 Stop the stack:
 
-```bash
+```
 docker compose down
 ```
 
-## Manual Test Steps
+## Manual Test Scenario
 
 1. Start the stack:
 
-```bash
+```
 docker compose up --build -d
 ```
 
-2. Create a product in `product-service`:
+2. The `order-service` consumer is started automatically via Docker Compose.
 
-```bash
+3. Create a product in `product-service`:
+
+```
 curl -X POST http://localhost:8001/products \
   -H "Content-Type: application/json" \
   -d '{"name":"Coffee Mug","price":12.99,"quantity":100}'
 ```
 
-3. Verify that the product was synchronized to `order-service` by creating an order:
+4. Verify that the product was synchronized to `order-service`.
 
-```bash
+You can:
+- check the database (order-service product table), or
+- proceed with order creation below, which implicitly validates synchronization
+
+5. Create an order in `order-service`:
+
+```
 curl -X POST http://localhost:8002/orders \
   -H "Content-Type: application/json" \
   -d '{"productId":"<PRODUCT_ID>","customerName":"John Doe","quantityOrdered":2}'
 ```
 
-4. Check created orders:
+Expected result:
+- Order is successfully created
+- Product quantity in order-service is decreased
 
-```bash
+6. Check created orders:
+
+```
 curl http://localhost:8002/orders
 ```
 
@@ -89,47 +120,57 @@ curl http://localhost:8002/orders
 
 Test structure:
 
-- `product-service/tests`: focused functional tests for product creation and validation
-- `order-service/tests`: focused functional and integration tests for order creation rules and product synchronization
-- `tests/e2e`: root-level end-to-end tests for cross-service behavior
+- `product-service/tests`: unit and integration tests for product logic
+- `order-service/tests`: unit and integration tests for order logic and product synchronization
+- `tests/e2e`: end-to-end tests for cross-service behavior
+
+Test coverage includes:
+
+- Product creation and validation
+- Order creation with business rules
+- Product synchronization logic
+- End-to-end scenarios covering full flow and failure cases
 
 Run product-service tests:
 
-```bash
+```
 make test-product
 ```
 
 or:
 
-```bash
+```
 cd product-service && ./vendor/bin/simple-phpunit
 ```
 
 Run order-service tests:
 
-```bash
+```
 make test-order
 ```
 
 or:
 
-```bash
+```
 cd order-service && ./vendor/bin/simple-phpunit
 ```
 
 Run end-to-end tests:
 
-```bash
+```
 make test-e2e
 ```
 
 or:
 
-```bash
+```
 php tests/e2e/run.php
 ```
 
-The end-to-end tests validate the full product-to-order flow across services, including successful ordering, insufficient quantity failure, and missing product failure.
+The end-to-end tests validate the full product-to-order flow, including:
+- successful order creation
+- insufficient quantity failure
+- missing product failure
 
 ## Product API Shape
 
@@ -140,9 +181,9 @@ The `product-service` API uses the same four product fields everywhere:
 - `price`
 - `quantity`
 
-Example product response:
+Example:
 
-```json
+```
 {
   "id": "018f4b0c-8ee8-7d15-bc28-0c65c8e0e9aa",
   "name": "Coffee Mug",
@@ -153,11 +194,11 @@ Example product response:
 
 ## Local Run Without Docker
 
-Each service can also run directly on the host machine.
+Each service can run directly on the host machine.
 
 Example:
 
-```bash
+```
 cd product-service
 composer install
 symfony server:start
@@ -165,7 +206,7 @@ symfony server:start
 
 or:
 
-```bash
+```
 cd product-service
 composer install
 php -S 127.0.0.1:8000 -t public
@@ -173,13 +214,24 @@ php -S 127.0.0.1:8000 -t public
 
 Do the same for `order-service`.
 
-When running outside Docker, the default `.env` values expect:
+When running outside Docker, defaults expect:
 
-- PostgreSQL for product service on `localhost:5433`
-- PostgreSQL for order service on `localhost:5434`
+- PostgreSQL for product-service on `localhost:5433`
+- PostgreSQL for order-service on `localhost:5434`
 - RabbitMQ on `localhost:5672`
 
 ## Security Considerations
 
-Authentication and authorization are intentionally not implemented in this technical task because they are outside the requested scope and not necessary to demonstrate the core microservice design. The focus here is on service boundaries, shared contracts, persistence, and asynchronous communication through RabbitMQ. In a production system, access control would typically be handled with JWT-based authentication, OAuth2/OpenID Connect, and often an API Gateway or dedicated identity provider in front of the services.
+Authentication and authorization are intentionally not implemented because they are outside the scope of this task.
 
+In a production system, access control would typically be implemented using:
+- JWT-based authentication
+- OAuth2 / OpenID Connect
+- API Gateway or identity provider
+
+## Known Limitations
+
+- Product updates and deletions are not fully implemented
+- Order lifecycle is simplified (single "Processing" state)
+- No retry or dead-letter queue handling for failed messages
+- Eventual consistency is used instead of distributed transactions
