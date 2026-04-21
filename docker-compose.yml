@@ -10,18 +10,13 @@ x-order-service-common: &order-service-common
     # Override Symfony local defaults when the app runs inside Docker.
     DATABASE_URL: postgresql://symfony:symfony@order-db:5432/order_service?serverVersion=16&charset=utf8
     MESSENGER_TRANSPORT_DSN: amqp://symfony:symfony@rabbitmq:5672/%2f/messages
-  depends_on:
-    rabbitmq:
-      condition: service_healthy
-    order-db:
-      condition: service_healthy
 
 services:
   rabbitmq:
     image: rabbitmq:3-management-alpine
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
     environment:
       RABBITMQ_DEFAULT_USER: symfony
       RABBITMQ_DEFAULT_PASS: symfony
@@ -36,7 +31,7 @@ services:
   product-db:
     image: postgres:16-alpine
     ports:
-      - "5433:5432"
+      - "${PRODUCT_DB_PORT:-5433}:5432"
     environment:
       POSTGRES_DB: product_service
       POSTGRES_USER: symfony
@@ -52,7 +47,7 @@ services:
   order-db:
     image: postgres:16-alpine
     ports:
-      - "5434:5432"
+      - "${ORDER_DB_PORT:-5434}:5432"
     environment:
       POSTGRES_DB: order_service
       POSTGRES_USER: symfony
@@ -82,17 +77,36 @@ services:
         condition: service_healthy
       product-db:
         condition: service_healthy
+    command: sh /app/docker/start-api.sh
     ports:
-      - "8001:8000"
+      - "${PRODUCT_SERVICE_PORT:-8001}:8000"
 
   order-service:
     <<: *order-service-common
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      order-db:
+        condition: service_healthy
+    command: sh /app/docker/start-api.sh
     ports:
-      - "8002:8000"
+      - "${ORDER_SERVICE_PORT:-8002}:8000"
 
   order-consumer:
     <<: *order-service-common
-    command: php bin/console messenger:consume async --time-limit=3600 --memory-limit=128M -vv
+    environment:
+      APP_ENV: dev
+      APP_DEBUG: 0
+      DATABASE_URL: postgresql://symfony:symfony@order-db:5432/order_service?serverVersion=16&charset=utf8
+      MESSENGER_TRANSPORT_DSN: amqp://symfony:symfony@rabbitmq:5672/%2f/messages
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      order-db:
+        condition: service_healthy
+      order-service:
+        condition: service_started
+    command: sh /app/docker/start-consumer.sh
 
   adminer:
     image: adminer:4
@@ -101,7 +115,7 @@ services:
       - product-db
       - order-db
     ports:
-      - "8080:8080"
+      - "${ADMINER_PORT:-8080}:8080"
 
 volumes:
   rabbitmq-data:

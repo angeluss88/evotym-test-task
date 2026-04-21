@@ -62,6 +62,8 @@ Run in background:
 docker compose up --build -d
 ```
 
+On a clean first run, `product-service` and `order-service` automatically execute Doctrine migrations during container startup. The first boot may take a little longer while the databases are initialized.
+
 Start Adminer as well:
 
 ```
@@ -73,6 +75,22 @@ Stop the stack:
 ```
 docker compose down
 ```
+
+## First Run
+
+After a clean reset such as:
+
+```
+docker compose down -v
+```
+
+starting the stack is enough:
+
+```
+docker compose up --build -d
+```
+
+The API containers run their Doctrine migrations automatically on startup, and the `order-consumer` container starts afterward to process RabbitMQ messages in the background.
 
 ## Manual Test Scenario
 
@@ -166,6 +184,8 @@ or:
 ```
 php tests/e2e/run.php
 ```
+
+The end-to-end runner starts an isolated Docker Compose project with separate volumes and alternate ports, so it does not modify the main local databases or RabbitMQ state.
 
 The end-to-end tests validate the full product-to-order flow, including:
 - successful order creation
