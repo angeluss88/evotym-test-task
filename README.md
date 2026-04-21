@@ -53,6 +53,26 @@ Stop the stack:
 docker compose down
 ```
 
+## Product API Shape
+
+The `product-service` API uses the same four product fields everywhere:
+
+- `id` as UUID
+- `name`
+- `price`
+- `quantity`
+
+Example product response:
+
+```json
+{
+  "id": "018f4b0c-8ee8-7d15-bc28-0c65c8e0e9aa",
+  "name": "Coffee Mug",
+  "price": 12.99,
+  "quantity": 100
+}
+```
+
 ## Local Run Without Docker
 
 Each service can also run directly on the host machine.
@@ -80,4 +100,8 @@ When running outside Docker, the default `.env` values expect:
 - PostgreSQL for product service on `localhost:5433`
 - PostgreSQL for order service on `localhost:5434`
 - RabbitMQ on `localhost:5672`
+
+## Security Considerations
+
+Authentication and authorization are intentionally not implemented in this technical task because they are outside the requested scope and not necessary to demonstrate the core microservice design. The focus here is on service boundaries, shared contracts, persistence, and asynchronous communication through RabbitMQ. In a production system, access control would typically be handled with JWT-based authentication, OAuth2/OpenID Connect, and often an API Gateway or dedicated identity provider in front of the services.
 
