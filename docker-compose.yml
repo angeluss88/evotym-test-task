@@ -1,3 +1,21 @@
+x-order-service-common: &order-service-common
+  build:
+    context: ./order-service
+  working_dir: /app
+  volumes:
+    - ./order-service:/app
+    - ./shared-bundle:/shared-bundle
+  environment:
+    APP_ENV: dev
+    # Override Symfony local defaults when the app runs inside Docker.
+    DATABASE_URL: postgresql://symfony:symfony@order-db:5432/order_service?serverVersion=16&charset=utf8
+    MESSENGER_TRANSPORT_DSN: amqp://symfony:symfony@rabbitmq:5672/%2f/messages
+  depends_on:
+    rabbitmq:
+      condition: service_healthy
+    order-db:
+      condition: service_healthy
+
 services:
   rabbitmq:
     image: rabbitmq:3-management-alpine
@@ -68,24 +86,13 @@ services:
       - "8001:8000"
 
   order-service:
-    build:
-      context: ./order-service
-    working_dir: /app
-    volumes:
-      - ./order-service:/app
-      - ./shared-bundle:/shared-bundle
-    environment:
-      APP_ENV: dev
-      # Override Symfony local defaults when the app runs inside Docker.
-      DATABASE_URL: postgresql://symfony:symfony@order-db:5432/order_service?serverVersion=16&charset=utf8
-      MESSENGER_TRANSPORT_DSN: amqp://symfony:symfony@rabbitmq:5672/%2f/messages
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      order-db:
-        condition: service_healthy
+    <<: *order-service-common
     ports:
       - "8002:8000"
+
+  order-consumer:
+    <<: *order-service-common
+    command: php bin/console messenger:consume async --time-limit=3600 --memory-limit=128M -vv
 
   adminer:
     image: adminer:4

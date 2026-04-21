@@ -41,6 +41,8 @@ Start the stack in background:
 docker compose up --build -d
 ```
 
+The RabbitMQ consumer for `order-service` runs automatically as the `order-consumer` container, so no separate `messenger:consume` command is needed during normal Docker usage.
+
 Start Adminer too:
 
 ```bash
@@ -61,13 +63,7 @@ docker compose down
 docker compose up --build -d
 ```
 
-2. In a separate terminal, start the `order-service` Messenger consumer:
-
-```bash
-make order-consumer
-```
-
-3. Create a product in `product-service`:
+2. Create a product in `product-service`:
 
 ```bash
 curl -X POST http://localhost:8001/products \
@@ -75,7 +71,7 @@ curl -X POST http://localhost:8001/products \
   -d '{"name":"Coffee Mug","price":12.99,"quantity":100}'
 ```
 
-4. Verify that the product was synchronized to `order-service` by creating an order:
+3. Verify that the product was synchronized to `order-service` by creating an order:
 
 ```bash
 curl -X POST http://localhost:8002/orders \
@@ -83,7 +79,7 @@ curl -X POST http://localhost:8002/orders \
   -d '{"productId":"<PRODUCT_ID>","customerName":"John Doe","quantityOrdered":2}'
 ```
 
-5. Check created orders:
+4. Check created orders:
 
 ```bash
 curl http://localhost:8002/orders
