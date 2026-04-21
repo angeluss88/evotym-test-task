@@ -78,5 +78,9 @@
                 "symlink": true
             }
         }
+    },
+    "require-dev": {
+        "symfony/browser-kit": "6.4.*",
+        "symfony/phpunit-bridge": "^8.0"
     }
 }

@@ -89,6 +89,52 @@ curl -X POST http://localhost:8002/orders \
 curl http://localhost:8002/orders
 ```
 
+## Automated Tests
+
+Test structure:
+
+- `product-service/tests`: focused functional tests for product creation and validation
+- `order-service/tests`: focused functional and integration tests for order creation rules and product synchronization
+- `tests/e2e`: root-level end-to-end tests for cross-service behavior
+
+Run product-service tests:
+
+```bash
+make test-product
+```
+
+or:
+
+```bash
+cd product-service && ./vendor/bin/simple-phpunit
+```
+
+Run order-service tests:
+
+```bash
+make test-order
+```
+
+or:
+
+```bash
+cd order-service && ./vendor/bin/simple-phpunit
+```
+
+Run end-to-end tests:
+
+```bash
+make test-e2e
+```
+
+or:
+
+```bash
+php tests/e2e/run.php
+```
+
+The end-to-end tests validate the full product-to-order flow across services, including successful ordering, insufficient quantity failure, and missing product failure.
+
 ## Product API Shape
 
 The `product-service` API uses the same four product fields everywhere:
