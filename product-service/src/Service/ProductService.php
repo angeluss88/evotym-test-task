@@ -10,7 +10,9 @@ use App\Exception\ProductNotFoundException;
 use App\Exception\ValidationException;
 use App\Repository\ProductRepository;
 use App\SharedBundle\Dto\ProductDto;
+use App\SharedBundle\Message\ProductSyncedMessage;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
@@ -19,6 +21,7 @@ final class ProductService
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly ProductRepository $productRepository,
+        private readonly MessageBusInterface $messageBus,
         private readonly ValidatorInterface $validator,
     ) {
     }
@@ -37,7 +40,16 @@ final class ProductService
         $this->entityManager->persist($product);
         $this->entityManager->flush();
 
-        return $this->toDto($product);
+        $productDto = $this->toDto($product);
+
+        $this->messageBus->dispatch(new ProductSyncedMessage(
+            $productDto->id,
+            $productDto->name,
+            $productDto->price,
+            $productDto->quantity,
+        ));
+
+        return $productDto;
     }
 
     /**
