@@ -53,6 +53,42 @@ Stop the stack:
 docker compose down
 ```
 
+## Manual Test Steps
+
+1. Start the stack:
+
+```bash
+docker compose up --build -d
+```
+
+2. In a separate terminal, start the `order-service` Messenger consumer:
+
+```bash
+make order-consumer
+```
+
+3. Create a product in `product-service`:
+
+```bash
+curl -X POST http://localhost:8001/products \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Coffee Mug","price":12.99,"quantity":100}'
+```
+
+4. Verify that the product was synchronized to `order-service` by creating an order:
+
+```bash
+curl -X POST http://localhost:8002/orders \
+  -H "Content-Type: application/json" \
+  -d '{"productId":"<PRODUCT_ID>","customerName":"John Doe","quantityOrdered":2}'
+```
+
+5. Check created orders:
+
+```bash
+curl http://localhost:8002/orders
+```
+
 ## Product API Shape
 
 The `product-service` API uses the same four product fields everywhere:
